@@ -5,7 +5,7 @@ This is an implementation for the LeNet-5 Network with a script for quantizing i
 - NumPy
 - h5py
 - protobuf 3.4+
-- keras
+- keras or PyTorch
 
 ## Quantization
 The `encoder.py` and `modelpb2.py` was taken from the [keras.js](https://github.com/transcranial/keras-js) but modified to run on python3 because python2 is nearly deperacted now.

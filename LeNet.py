@@ -8,11 +8,11 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets
 from torchsummary import summary
 
-torch.set_default_dtype(torch.uint8)
+# torch.set_default_dtype(torch.uint8)
 
 def data_processing(num_workers=0, batch_size=32, valid_sample=0.2):
 
-    transform = [transforms.Pad(2), transforms.ToTensor()]
+    transform = [transforms.ToTensor()]
 
     # choose the training and test datasets
     train_data = datasets.MNIST(root='data',
@@ -54,23 +54,31 @@ def data_processing(num_workers=0, batch_size=32, valid_sample=0.2):
 class LeNet(nn.Module):
     def __init__(self):
         super(LeNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 6, (5, 5)).uint8()
-        self.avg_pool1 = nn.AvgPool2d((2,2)).uint8()
-        self.conv2 = nn.Conv2d(6, 16, (5, 5)).uint8()
-        self.avg_pool2 = nn.AvgPool2d((2,2)).uint8()
-        self.conv3 = nn.Conv2d(16, 120, (5, 5)).uint8()
-        self.fc1 = nn.Linear(240, 84).uint8()
-        self.fc2 = nn.Linear(84, 10).uint8()
+        # 28 x 28 x 1
+        self.conv1 = nn.Conv2d(1, 6, (5, 5), padding=2)
+        # 28 x 28 x 6
+        self.pool1 = nn.AvgPool2d((2,2), stride=1)
+        # 27 x 27 x 6
+        self.conv2 = nn.Conv2d(6, 16, (5, 5), padding=2)
+        # 14 x 14 x 16
+        self.conv3 = nn.Conv2d(16, 120, (5, 5), padding=2)
+        # 6 x 6 x 120
+        self.pool2 = nn.AvgPool2d((2,2), stride=2)
+        self.fc1 = nn.Linear(6 * 6 * 120, 84)
+        self.fc2 = nn.Linear(84, 10)
 
     def forward(self, x):
         x = torch.tanh(self.conv1(x))
-        x = self.avg_pool1(x)
+        x = self.pool1(x)
         x = torch.tanh(self.conv2(x))
-        x = self.avg_pool2(x)
+        x = self.pool2(x)
         x = torch.tanh(self.conv3(x))
-        x = torch.flatten(x)
-        x = F.tanh(self.fc1(x))
-        x = F.softmax(self.fc2(x), dim=-1)
+        x = self.pool2(x)
+        # Choose either view or flatten (as you like)
+        x = x.view(x.size(0), -1)
+        # x = torch.flatten(x, start_dim=1)
+        x = torch.tanh(self.fc1(x))
+        x = torch.softmax(self.fc2(x), dim=-1)
         return x
 
 
@@ -134,10 +142,6 @@ def Train(model,
             valid_loss_min = valid_loss
 
 
-def Load(model, path="model.pt"):
-    return model.load_state_dict(torch.load(path))
-
-
 def Test(model, classes, test_loader):
     # initialize lists to monitor test loss and accuracy
     test_loss = 0.0
@@ -154,7 +158,7 @@ def Test(model, classes, test_loader):
         # update test loss
         test_loss += loss.item() * data.size(0)
         # convert output probabilities to predicted class
-        _, pred = max(output, 1)
+        _, pred = torch.max(output, 1)
         # compare predictions to true label
         correct = np.squeeze(pred.eq(target.data.view_as(pred)))
         # calculate test accuracy for each object class
@@ -192,7 +196,10 @@ if __name__ == "__main__":
 
     # initilize the model
     model = LeNet()
-    summary(model.to("cuda"), (1, 32, 32))
+    
+    # print the model shapes in every layer
+    # summary(model.to("cuda"), (1, 28, 28))
+    
     # classes of MNIST
     classes = list(range(10))
 
@@ -206,10 +213,10 @@ if __name__ == "__main__":
         num_workers, batch_size, valid_sample)
 
     # Training the model on GPU if avialable
-    Train(model, train_loader, validation_loader, optimizer, criterion)
+    # Train(model, train_loader, validation_loader, optimizer, criterion)
 
     # Loading the model's weights
-    Load(model)
+    model.load_state_dict(torch.load("model.pt"))
 
     # Testing the model
     Test(model, classes, test_loader)

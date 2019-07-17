@@ -8,6 +8,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torchsummary import summary
 from torchvision import datasets
 from PIL import Image
+import os
 
 # torch.set_default_dtype(torch.uint8)
 
@@ -232,8 +233,16 @@ def Visualize(model, layer, input_img):
     for i in range(param[2*layer].shape[0]):
         write_file("filter_weights.txt", "{}, Bias: {} \n".format(param[2*layer][i].data, param[2*layer+1][i]))
         img, _, _ = quantize_arr(model.conv1.forward(input_img).squeeze(0)[i].detach().numpy())
+        if not os.path.isfile("Filter" + str(i) + ".txt"):
+            write_file("Filter" + str(i) + ".txt", "{}".format(img))
         img = Image.fromarray(img)
         img.save("Filter" + str(i) + ".png")
+
+def Similarity(img1_path, img2_path):
+    img1 = Image.open(img1_path)  
+    img2 = Image.open(img2_path)
+    result = np.array(img1) - np.array(img2)  
+    print("{}%".format((1 - np.average(result) / 255) * 100))
 
 if __name__ == "__main__":
 
@@ -275,4 +284,7 @@ if __name__ == "__main__":
     # Testing the model
     # Test(model, classes, test_loader)
 
+    # Visualize weights and feature maps
     Visualize(model, 0, next(iter(test_loader))[0][0].unsqueeze(0))
+
+    # Similarity("Filter0.png", "Filter3.png")

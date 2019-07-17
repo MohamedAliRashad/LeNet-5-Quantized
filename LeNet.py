@@ -7,8 +7,10 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchsummary import summary
 from torchvision import datasets
+from PIL import Image
 
 # torch.set_default_dtype(torch.uint8)
+
 
 def quantize_arr(arr):
     """Quantization based on linear rescaling over min/max range.
@@ -35,8 +37,8 @@ def print_weights(model, weights_path):
 
 def write_file(output_path, weights):
 
-    with open(output_path, 'w') as f:
-        f.write(str(weights))
+    with open(output_path, 'a') as f:
+        f.write(weights)
 
 
 def Quantize_weights(weights_float):
@@ -49,6 +51,7 @@ def Quantize_weights(weights_float):
             weight, min_val, max_val = quantize_arr(a)
             weights_uint8.append(weight)
     layers.append(weights)
+
 
 def data_processing(num_workers=0, batch_size=32, valid_sample=0.2):
 
@@ -97,11 +100,11 @@ class LeNet(nn.Module):
         # 32 x 32 x 1
         self.conv1 = nn.Conv2d(1, 6, (5, 5), padding=0, stride=1)
         # 28 x 28 x 6
-        self.pool1 = nn.AvgPool2d((2,2), stride=2)
+        self.pool1 = nn.AvgPool2d((2, 2), stride=2)
         # 14 x 14 x 6
         self.conv2 = nn.Conv2d(6, 16, (5, 5), padding=0, stride=1)
         # 10 x 10 x 16
-        self.pool2 = nn.AvgPool2d((2,2), stride=2)
+        self.pool2 = nn.AvgPool2d((2, 2), stride=2)
         # 5 x 5 x 16
         self.conv3 = nn.Conv2d(16, 120, (5, 5), padding=0, stride=1)
         # 1 x 1 x 120
@@ -223,6 +226,15 @@ def Test(model, classes, test_loader):
            np.sum(class_correct), np.sum(class_total)))
 
 
+def Visualize(model, layer, input_img):
+    param = list(model.parameters())
+
+    for i in range(param[2*layer].shape[0]):
+        write_file("filter_weights.txt", "{}, Bias: {} \n".format(param[2*layer][i].data, param[2*layer+1][i]))
+        img, _, _ = quantize_arr(model.conv1.forward(input_img).squeeze(0)[i].detach().numpy())
+        img = Image.fromarray(img)
+        img.save("Filter" + str(i) + ".png")
+
 if __name__ == "__main__":
 
     # number of subprocesses to use for data loading
@@ -234,14 +246,14 @@ if __name__ == "__main__":
 
     # initilize the model
     model = LeNet().float()
-    
+
     ##### Testing
     # test = np.random.randn(1,32,32)
     # print(test.shape)
     # result = model(torch.from_numpy(test).unsqueeze(0).float())
     # print the model shapes in every layer
     # summary(model.to("cuda"), (1, 28, 28))
-    
+
     # classes of MNIST
     classes = list(range(10))
 
@@ -250,7 +262,7 @@ if __name__ == "__main__":
     # specify optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
-    # 
+    #
     train_loader, validation_loader, test_loader = data_processing(
         num_workers, batch_size, valid_sample)
 
@@ -261,4 +273,6 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load("model.pt"))
 
     # Testing the model
-    Test(model, classes, test_loader)
+    # Test(model, classes, test_loader)
+
+    Visualize(model, 0, next(iter(test_loader))[0][0].unsqueeze(0))

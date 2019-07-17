@@ -5,14 +5,54 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
-from torchvision import datasets
 from torchsummary import summary
+from torchvision import datasets
 
 # torch.set_default_dtype(torch.uint8)
 
+def quantize_arr(arr):
+    """Quantization based on linear rescaling over min/max range.
+    """
+    min_val, max_val = np.min(arr), np.max(arr)
+    if max_val - min_val > 0:
+        quantized = np.round(255 * (arr - min_val) / (max_val - min_val))
+    else:
+        quantized = np.zeros(arr.shape)
+    quantized = quantized.astype(np.uint8)
+    min_val = min_val.astype(np.float32)
+    max_val = max_val.astype(np.float32)
+    return quantized, min_val, max_val
+
+
+def print_weights(model, weights_path):
+
+    # Load Weights
+    model.load_weights(weights_path)
+
+    for layer in model.layers:
+        print(layer.get_weights())
+
+
+def write_file(output_path, weights):
+
+    with open(output_path, 'w') as f:
+        f.write(str(weights))
+
+
+def Quantize_weights(weights_float):
+
+    weights_uint8 = []
+    layers = []
+
+    for weight_float in weights_float:
+        for a in weight_float:
+            weight, min_val, max_val = quantize_arr(a)
+            weights_uint8.append(weight)
+    layers.append(weights)
+
 def data_processing(num_workers=0, batch_size=32, valid_sample=0.2):
 
-    transform = [transforms.ToTensor()]
+    transform = [transforms.Pad(2), transforms.ToTensor()]
 
     # choose the training and test datasets
     train_data = datasets.MNIST(root='data',
@@ -54,17 +94,18 @@ def data_processing(num_workers=0, batch_size=32, valid_sample=0.2):
 class LeNet(nn.Module):
     def __init__(self):
         super(LeNet, self).__init__()
-        # 28 x 28 x 1
-        self.conv1 = nn.Conv2d(1, 6, (5, 5), padding=2)
+        # 32 x 32 x 1
+        self.conv1 = nn.Conv2d(1, 6, (5, 5), padding=0, stride=1)
         # 28 x 28 x 6
-        self.pool1 = nn.AvgPool2d((2,2), stride=1)
-        # 27 x 27 x 6
-        self.conv2 = nn.Conv2d(6, 16, (5, 5), padding=2)
-        # 14 x 14 x 16
-        self.conv3 = nn.Conv2d(16, 120, (5, 5), padding=2)
-        # 6 x 6 x 120
+        self.pool1 = nn.AvgPool2d((2,2), stride=2)
+        # 14 x 14 x 6
+        self.conv2 = nn.Conv2d(6, 16, (5, 5), padding=0, stride=1)
+        # 10 x 10 x 16
         self.pool2 = nn.AvgPool2d((2,2), stride=2)
-        self.fc1 = nn.Linear(6 * 6 * 120, 84)
+        # 5 x 5 x 16
+        self.conv3 = nn.Conv2d(16, 120, (5, 5), padding=0, stride=1)
+        # 1 x 1 x 120
+        self.fc1 = nn.Linear(120, 84)
         self.fc2 = nn.Linear(84, 10)
 
     def forward(self, x):
@@ -73,7 +114,6 @@ class LeNet(nn.Module):
         x = torch.tanh(self.conv2(x))
         x = self.pool2(x)
         x = torch.tanh(self.conv3(x))
-        x = self.pool2(x)
         # Choose either view or flatten (as you like)
         x = x.view(x.size(0), -1)
         # x = torch.flatten(x, start_dim=1)
@@ -89,9 +129,9 @@ def Train(model,
           criterion,
           n_epochs=40):
 
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # model.to(device)
+    model.to(device)
 
     valid_loss_min = np.Inf
 
@@ -106,14 +146,12 @@ def Train(model,
         ###################
         model.train()  # prep model for training
         for data, target in train_loader:
-            # data.to(device)
-            # target.to(device)
             # clear the gradients of all optimized variables
             optimizer.zero_grad()
             # forward pass: compute predicted outputs by passing inputs to the model
-            output = model(data)
+            output = model(data.to(device))
             # calculate the loss
-            loss = criterion(output, target)
+            loss = criterion(output, target.to(device))
             # backward pass: compute gradient of the loss with respect to model parameters
             loss.backward()
             # perform a single optimization step (parameter update)
@@ -123,8 +161,8 @@ def Train(model,
 
         model.eval()
         for data, target in validation_loader:
-            output = model(data)
-            loss = criterion(output, target)
+            output = model(data.to(device))
+            loss = criterion(output, target.to(device))
             valid_loss += loss.item() * data.size(0)
 
         # print training statistics
@@ -195,8 +233,12 @@ if __name__ == "__main__":
     valid_sample = 0.2
 
     # initilize the model
-    model = LeNet()
+    model = LeNet().float()
     
+    ##### Testing
+    # test = np.random.randn(1,32,32)
+    # print(test.shape)
+    # result = model(torch.from_numpy(test).unsqueeze(0).float())
     # print the model shapes in every layer
     # summary(model.to("cuda"), (1, 28, 28))
     

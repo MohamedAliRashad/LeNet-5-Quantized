@@ -1,18 +1,17 @@
 # LeNet-5-Quantized
-This is an implementation for the LeNet-5 Network with a script for quantizing its weights to 8 bit unsigned integer
+This is an implementation for the LeNet-5 Network with a script for quantizing its weights to 8 bit unsigned integer.
+
+<p align="center">
+  <img src="https://github.com/MohamedAliRashad/LeNet-5-Quantized/blob/master/LeNet-5.png" width="750">
+</p>
 
 ## Requirements
 - NumPy
 - h5py
 - protobuf 3.4+
-- keras or PyTorch
+- PyTorch
 
 ## Quantization
-The `encoder.py` and `modelpb2.py` was taken from the [keras.js](https://github.com/transcranial/keras-js) but modified to run on python3 because python2 is nearly deperacted now.
+The idea of quantization was inspired from [keras.js](https://github.com/transcranial/keras-js) with some tweeks.
 
-Run the quantization process by typing this in the command line
-```
-./encoder.py -q LeNet_5.h5
-```
-
-For more inforamtion, refer to the `encoder.py` [Docs](https://transcranial.github.io/keras-js-docs/conversion/).
+I was able to quantize the weights of `conv1` and rebuild its output in grayscale format in order to demonstrate the features learned in the first layer.

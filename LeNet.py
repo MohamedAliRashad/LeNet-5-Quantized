@@ -121,15 +121,15 @@ class LeNet(nn.Module):
         self.fc2 = nn.Linear(84, 10)
 
     def forward(self, x):
-        x = torch.tanh(self.conv1(x))
+        x = F.relu(self.conv1(x))
         x = self.pool1(x)
-        x = torch.tanh(self.conv2(x))
+        x = F.relu(self.conv2(x))
         x = self.pool2(x)
-        x = torch.tanh(self.conv3(x))
+        x = F.relu(self.conv3(x))
         # Choose either view or flatten (as you like)
         x = x.view(x.size(0), -1)
         # x = torch.flatten(x, start_dim=1)
-        x = torch.tanh(self.fc1(x))
+        x = F.relu(self.fc1(x))
         x = torch.softmax(self.fc2(x), dim=-1)
         return x
 

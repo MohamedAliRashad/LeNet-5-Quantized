@@ -1,3 +1,5 @@
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MohamedAliRashad/LeNet-5-Quantized/blob/master/LeNet5.ipynb)
+
 # LeNet-5-Quantized
 This is an implementation for the LeNet-5 Network with a script for quantizing its weights to 8 bit unsigned integer.
 

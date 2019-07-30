@@ -9,6 +9,7 @@ from torchsummary import summary
 from torchvision import datasets
 from PIL import Image
 import os
+import matplotlib.pyplot as plt
 
 # torch.set_default_dtype(torch.uint8)
 
@@ -21,10 +22,10 @@ def quantize_arr(arr):
         quantized = np.round(255 * (arr - min_val) / (max_val - min_val))
     else:
         quantized = np.zeros(arr.shape)
-    quantized = quantized.astype(np.uint8)
+    quantized = quantized.astype(np.int8)
     min_val = min_val.astype(np.float32)
-    max_val = max_val.astype(np.float32)
-    return quantized, min_val, max_val
+    max_val = max_val.astype(np.float32) 
+    return quantized - 127, min_val, max_val
 
 
 def print_weights(model, weights_path):
@@ -103,9 +104,9 @@ def data_processing(num_workers=0, batch_size=32, valid_sample=0.2):
     return train_loader, validation_loader, test_loader
 
 
-class LeNet(nn.Module):
+class LeNet5(nn.Module):
     def __init__(self):
-        super(LeNet, self).__init__()
+        super(LeNet5, self).__init__()
         # 32 x 32 x 1
         self.conv1 = nn.Conv2d(1, 6, (5, 5), padding=0, stride=1)
         # 28 x 28 x 6
@@ -238,25 +239,27 @@ def Test(model, classes, test_loader):
 def Visualize(model, input_img):
     param = list(model.parameters())
 
-    data = model.fc2.forward(model.fc1.forward(
-        torch.flatten(model.conv3.forward(
-            model.pool2.forward(
-                model.conv2.forward(
-                    model.pool1.forward(model.conv1.forward(input_img))))),
-                        start_dim=1)))
+    data = model.fc2.forward(
+        model.fc1.forward(
+            torch.flatten(model.conv3.forward(
+                model.pool2.forward(
+                    model.conv2.forward(
+                        model.pool1.forward(model.conv1.forward(input_img))))),
+                          start_dim=1)))
     write_file("fc2/output.txt", "{}".format(data.data), write=True)
     for i in range(param[8].shape[0]):
-        write_file("fc2/weights.txt", "{}, Bias: {}\n".format(param[8][i].data, param[9][i]))
+        write_file("fc2/weights.txt",
+                   "{}, Bias: {}\n".format(param[8][i].data, param[9][i]))
     # for i in range(param[6].shape[0]):
-        # write_file("conv3/filter_weights.txt",
-        #            "{}, Bias: {} \n".format(param[4][i].data, param[5][i]))
-        # write_file("conv3/filter_weights.txt", "{}\n".format(img))
+    # write_file("conv3/filter_weights.txt",
+    #            "{}, Bias: {} \n".format(param[4][i].data, param[5][i]))
+    # write_file("conv3/filter_weights.txt", "{}\n".format(img))
 
-        # write_file("pool2/Filter" + str(i) + ".txt",
-        #            "{}".format(img),
-        #            write=True)
-        # img = Image.fromarray(img)
-        # img.save("pool2/Filter" + str(i) + ".png")
+    # write_file("pool2/Filter" + str(i) + ".txt",
+    #            "{}".format(img),
+    #            write=True)
+    # img = Image.fromarray(img)
+    # img.save("pool2/Filter" + str(i) + ".png")
 
 
 def Similarity(img1_path, img2_path):
@@ -276,7 +279,7 @@ if __name__ == "__main__":
     valid_sample = 0.2
 
     # initilize the model
-    model = LeNet().float()
+    model = LeNet5()
 
     ##### Testing
     # test = np.random.randn(1,32,32)
@@ -307,8 +310,40 @@ if __name__ == "__main__":
     # Test(model, classes, test_loader)
 
     # Visualize weights and feature maps
-    Visualize(model, next(iter(test_loader))[0][0].unsqueeze(0))
+    # Visualize(model, next(iter(test_loader))[0][0].unsqueeze(0))
 
     # Similarity("Filter0.png", "Filter3.png")
     # for param in model.parameters():
     #     print(param.shape)
+
+    # Input image for analysis
+    input_img = next(iter(test_loader))[0][0].squeeze(0)
+    # plt.imshow(input_img)
+
+    # Modifying the input image for analysis
+    input_img = input_img.unsqueeze(0).unsqueeze(0)
+
+    W = []
+    for i in range(6):
+        Weights, min_val, max_val = quantize_arr(
+            model.conv1.weight.data[i][0].numpy())
+        # print(Weights)
+        W.append(Weights)
+
+    model.conv1.weight.data = torch.from_numpy(
+        np.expand_dims(np.array(W), axis=1)).float()
+    print(model.conv1.weight.data)
+
+    feature_map = np.floor(
+        F.relu(
+            model.conv1.forward(
+                torch.from_numpy(quantize_arr(
+                    input_img[0][0].numpy())[0]).unsqueeze(0).unsqueeze(
+                        0).float())).detach().numpy()[0][0]).astype(np.uint8)
+    # print(feature_map)
+    # print(model.conv1.forward(torch.from_numpy(quantize_arr(input_img[0][0].numpy())[0]).unsqueeze(0).unsqueeze(0).float())[0][0])
+    # print(input_img[0][0])
+    # print(torch.from_numpy(quantize_arr(input_img[0][0].numpy())[0]).unsqueeze(0).unsqueeze(0).float()[0][0][10:])
+
+    plt.imshow(feature_map)
+    plt.show()
